@@ -15,6 +15,31 @@ checkPatterns() {
     return $keepit
 }
 
+containerMatches() {
+    CONTAINER_ID=$1
+    CONTAINER_IMAGE=$(docker inspect --format='{{(index .Config.Image)}}' $CONTAINER_ID)
+    CONTAINER_NAME=$(docker inspect --format='{{(index .Name)}}' $CONTAINER_ID)
+    if [ $DEBUG ]; then echo "DEBUG: Check container image $CONTAINER_IMAGE named $CONTAINER_NAME"; fi
+    keepit=0
+    checkPatterns "${KEEP_CONTAINERS}" "${CONTAINER_IMAGE}" $keepit
+    keepit=$?
+    checkPatterns "${KEEP_CONTAINERS_NAMED}" "${CONTAINER_NAME}" $keepit
+    keepit=$?
+    return $keepit
+}
+
+deleteContainer() {
+    CONTAINER_ID=$1
+    containerMatches $CONTAINER_ID
+    keepit=$?
+    if [[ $keepit -eq 0 ]]; then
+      echo "Removing stopped container $CONTAINER_ID"
+      docker rm -v $CONTAINER_ID
+    elif [ $DEBUG ]; then
+      echo "DEBUG: $CONTAINER_ID is whitelisted from deletion, skipping"
+    fi
+}
+
 if [ ! -e "/var/run/docker.sock" ]; then
     echo "=> Cannot find docker socket(/var/run/docker.sock), please check the command!"
     exit 1
@@ -95,18 +120,7 @@ do
     echo "=> Removing exited/dead containers"
     EXITED_CONTAINERS_IDS="`docker ps -a -q -f status=exited -f status=dead | xargs echo`"
     for CONTAINER_ID in $EXITED_CONTAINERS_IDS; do
-      CONTAINER_IMAGE=$(docker inspect --format='{{(index .Config.Image)}}' $CONTAINER_ID)
-      CONTAINER_NAME=$(docker inspect --format='{{(index .Name)}}' $CONTAINER_ID)
-      if [ $DEBUG ]; then echo "DEBUG: Check container image $CONTAINER_IMAGE named $CONTAINER_NAME"; fi
-      keepit=0
-      checkPatterns "${KEEP_CONTAINERS}" "${CONTAINER_IMAGE}" $keepit
-      keepit=$?
-      checkPatterns "${KEEP_CONTAINERS_NAMED}" "${CONTAINER_NAME}" $keepit
-      keepit=$?
-      if [[ $keepit -eq 0 ]]; then
-        echo "Removing stopped container $CONTAINER_ID"
-        docker rm -v $CONTAINER_ID
-      fi
+        deleteContainer $CONTAINER_ID
     done
     unset CONTAINER_ID
 
