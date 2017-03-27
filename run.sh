@@ -192,7 +192,9 @@ do
     if [ -s CreatedContainerToClean ]; then
         echo "=> Start to clean $(cat CreatedContainerToClean | wc -l) created/stuck containers"
         if [ $DEBUG ]; then echo "DEBUG: Removing unstarted containers"; fi
-        docker rm -v $(cat CreatedContainerToClean)
+        for CONTAINER_ID in $(cat CreatedContainerToClean); do
+            deleteContainer $CONTAINER_ID
+        done
     fi
 
     # Remove images being used by containers from the delete list again. This prevents the images being pulled from deleting
